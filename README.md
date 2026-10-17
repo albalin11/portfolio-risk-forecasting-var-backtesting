@@ -1,165 +1,76 @@
-# ML-Driven Portfolio Risk Analytics
+# Portfolio Risk Forecasting
 
-## Research question
+## Question
 
-Can simple machine-learning models improve forecasts of an equal-weight ETF portfolio's
-next-five-trading-day realised volatility? Do those forecasts produce well-calibrated
-five-day Value at Risk (VaR) limits on a held-out test period?
-
-**Models:** Historical Volatility, EWMA, Linear Regression, Random Forest and XGBoost.
-
-**Main result:** Linear Regression was selected on validation and recorded test MAE
-**0.035502** and RMSE **0.052967**, the lowest errors
-among the three final test models.
-
-![Held-out volatility forecasts](outputs/figures/test_volatility_forecasts.png)
+Does a lower error in forecasting portfolio volatility lead to more reliable five-day Value at Risk (VaR)? This project compares simple volatility forecasts with three regression methods, then checks the resulting 95% and 99% VaR limits on the same fixed test period.
 
 ## Data and portfolio
 
-The project uses Yahoo Finance adjusted close prices for seven ETFs on the XNYS calendar.
-The fixed sample contains **4,201 price dates** from
-**2010-01-04 to 2026-09-16** and
-**4,200 daily return dates**. Part 1 found no missing expected
-sessions or cross-asset price gaps. Raw and observation-level data remain local because
-market-data redistribution rights are separate from the yfinance software license; see
-[data provenance](data/README.md).
+Seven Yahoo Finance adjusted-close series (SPY, QQQ, IWM, TLT, HYG, GLD and DBC) run from **2010-01-04 to 2026-09-16**: 4,201 aligned XNYS trading dates and 4,200 daily return dates. The script requires every expected session and a positive adjusted price for every asset. It neither fills missing prices nor removes unexplained gaps. The local snapshot was downloaded on 2026-09-19; it is not distributed with the repository. A fresh Yahoo download may yield revised values. See [data provenance](data/README.md).
 
-| ETF | Main exposure |
+The portfolio holds 1/7 in each ETF at each daily close. Daily portfolio return is the mean of the seven adjusted-price returns; this represents daily rebalancing and preserves cross-asset co-movement.
+
+## Forecast design
+
+All eight features at forecast date `t` use returns through `t`:
+
+| Feature | Definition |
 | --- | --- |
-| SPY | US large-cap equities |
-| QQQ | Nasdaq-100 equities |
-| IWM | US small-cap equities |
-| TLT | Long-duration US Treasury bonds |
-| HYG | High-yield corporate bonds |
-| GLD | Gold |
-| DBC | Broad commodities |
+| `return_1d` | Portfolio return on `t` |
+| `return_5d`, `return_20d` | Compounded portfolio returns over the last 5 or 20 sessions |
+| `volatility_5d`, `volatility_20d`, `volatility_60d` | Trailing sample standard deviation, annualised by √252 |
+| `drawdown` | Compounded portfolio wealth relative to its highest level since the sample start (including initial wealth of 1) |
+| `average_correlation_20d` | Mean of the 21 distinct pairwise ETF return correlations over 20 sessions |
 
-The portfolio keeps a constant **1/7 weight** in each ETF. Its daily return is the mean of
-the seven ETF returns, so portfolio volatility includes cross-asset co-movement.
+The target is the **sample standard deviation of portfolio returns from `t+1` through `t+5`, multiplied by √252**. The complete dataset has 4,136 forecast dates, from 2010-03-31 to 2026-09-09. The initial 59 dates lack a complete 60-day feature; the final five lack a complete target. These are the only rows omitted.
 
-## Features and target
+Training ends on 2017-12-21 (1,948 rows), validation runs from 2018-01-02 to 2021-12-23 (1,003), and test runs from 2022-01-03 to 2026-09-09 (1,175). The five forecast dates before each later split are excluded from fitting or selection because their targets end in the next period. The final selected model is refitted on all eligible pre-test observations.
 
-Part 2 creates eight backward-looking features: `return_1d`, `return_5d`, `return_20d`, `volatility_5d`, `volatility_20d`, `volatility_60d`, `drawdown`, `average_correlation_20d`. The target at date `t` is
-the annualised sample standard deviation of portfolio returns from `t+1` through `t+5`.
-The final modeling data contain **4,136 rows** from
-**2010-03-31 to 2026-09-09**, with no missing or non-finite
-values. No future information enters the features. Independent formulas, full target
-alignment and prefix-invariance checks passed.
+Historical Volatility uses the trailing 20-day feature. EWMA uses a 0.94 decay on squared daily portfolio returns, beginning with the first available return. Linear Regression, Random Forest (200 trees, depth 3, minimum leaf 10) and XGBoost (200 trees, depth 2, learning rate 0.03) use the same eight features and training labels. These are deliberately modest specifications. Historical Volatility and EWMA use their own fixed rules and no fitted target labels. All forecasts and targets are in annualised volatility decimals. Validation MAE selects the ML method; RMSE breaks a tie. The two baselines and the selected ML method are then compared on test. The tree methods are retained as nonlinear validation comparisons; they do not add a separate test claim.
 
-## Forecasting models and time split
-
-The two baselines are trailing 20-day Historical Volatility and EWMA with lambda 0.94.
-The ML models are Linear Regression, Random Forest and XGBoost. Validation MAE is the
-primary selection metric and RMSE is secondary. The chronological split is never shuffled;
-five boundary observations are purged before validation and test so target windows do not
-cross split boundaries. Scaling and model fitting use only eligible earlier observations.
-
-| Split | Dates | Rows |
-| --- | --- | --- |
-| train | 2010-03-31 to 2017-12-21 | 1948 |
-| validation | 2018-01-02 to 2021-12-23 | 1003 |
-| test | 2022-01-03 to 2026-09-09 | 1175 |
-
-## Forecast results
-
-Errors are annualised volatility decimals. Random Forest and XGBoost were not evaluated on
-test because the test set was not used for model selection.
+## Volatility results
 
 | Model | Validation MAE | Validation RMSE | Test MAE | Test RMSE |
-| --- | --- | --- | --- | --- |
+| --- | ---: | ---: | ---: | ---: |
 | Linear Regression | 0.035246 | 0.056723 | 0.035502 | 0.052967 |
-| XGBoost | 0.035950 | 0.061745 | Not evaluated | Not evaluated |
-| Random Forest | 0.037528 | 0.064782 | Not evaluated | Not evaluated |
+| XGBoost | 0.035950 | 0.061745 | — | — |
+| Random Forest | 0.037528 | 0.064782 | — | — |
 | Historical Volatility | 0.041307 | 0.063688 | 0.040831 | 0.060382 |
 | EWMA | 0.041399 | 0.061941 | 0.039416 | 0.057162 |
 
-**Linear Regression** was selected on validation. Its test RMSE was
-**7.34% lower** than
-EWMA, the lower-RMSE baseline. This point comparison does not establish
-statistical superiority or trading profitability.
+Linear Regression has the lowest validation MAE and the lowest test MAE and RMSE among the evaluated models. Its test RMSE is 7.34% below EWMA, the stronger baseline by RMSE. This is a point comparison on one period, not evidence of statistical or economic superiority.
 
-![Model forecast errors](outputs/figures/model_errors.png)
+![Test forecasts](outputs/figures/test_volatility_forecasts.png)
 
-## Five-day VaR backtesting
+## Five-day VaR
 
-Part 4 uses the saved annualised test volatility forecasts and zero expected return:
+For each forecast, the positive loss limit is `z × annualised volatility × √(5/252)`, with normal quantiles 1.64485 at 95% and 2.32635 at 99%. This assumes zero expected return and square-root-of-time variance scaling. A violation occurs when the **compounded** return over `t+1` through `t+5` is below the negative limit. Using a normal additive-return approximation for a compounded outcome is another limitation.
 
-```text
-sigma_5d = sigma_annual * sqrt(5 / 252)
-VaR_loss(95%) = 1.645 * sigma_5d
-VaR_loss(99%) = 2.326 * sigma_5d
-violation = actual future 5-day compounded return < -VaR_loss
-```
+Kupiec's unconditional coverage test uses every fifth test forecast from 2022-01-03, giving 235 disjoint five-session outcomes per model and confidence level. The reported p-values use the one-degree-of-freedom chi-square reference distribution.
 
-Actual outcomes compound the five portfolio returns after each forecast date. Formal
-Kupiec unconditional coverage tests use every fifth forecast from the first test date,
-giving **235 non-overlapping windows** per model and confidence level.
+| Model | VaR | Violations / 235 | Rate | Kupiec LR | p-value |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Historical Volatility | 95% | 10 | 4.26% | 0.2883 | 0.5913 |
+| Historical Volatility | 99% | 3 | 1.28% | 0.1670 | 0.6828 |
+| EWMA | 95% | 8 | 3.40% | 1.4121 | 0.2347 |
+| EWMA | 99% | 1 | 0.43% | 0.9990 | 0.3176 |
+| Linear Regression | 95% | 15 | 6.38% | 0.8735 | 0.3500 |
+| Linear Regression | 99% | 4 | 1.70% | 0.9668 | 0.3255 |
 
-| Model | Confidence | Windows | Violations | Rate | Expected | Kupiec LR | p-value |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Historical Volatility | 95.00% | 235 | 10 | 4.26% | 5.00% | 0.2883 | 0.5913 |
-| Historical Volatility | 99.00% | 235 | 3 | 1.28% | 1.00% | 0.1670 | 0.6828 |
-| EWMA | 95.00% | 235 | 8 | 3.40% | 5.00% | 1.4121 | 0.2347 |
-| EWMA | 99.00% | 235 | 1 | 0.43% | 1.00% | 0.9990 | 0.3176 |
-| Linear Regression | 95.00% | 235 | 15 | 6.38% | 5.00% | 0.8735 | 0.3500 |
-| Linear Regression | 99.00% | 235 | 4 | 1.70% | 1.00% | 0.9668 | 0.3255 |
+All six Kupiec p-values exceed 0.05. That does **not** establish accurate VaR: only 2.35 violations are expected at 99%, and the test checks frequency rather than independence or loss severity. Linear Regression has the smallest volatility error but the most observed violations at both VaR levels. This result supports a narrower conclusion: improved average volatility error did not produce fewer tail breaches here. The normal assumption, five-session scaling, short realised-volatility target and portfolio return distribution may matter; these data do not isolate which factor explains the difference.
 
-None of the six Kupiec tests rejects the expected violation rate at 5%. This does not prove
-correct calibration: only 2.35 violations are expected at 99%, and the test checks frequency
-rather than independence. Linear Regression has the lowest test forecast error but the
-highest observed VaR violation rate, so point accuracy and tail calibration differ.
+![Non-overlapping VaR outcomes](outputs/figures/var_violations.png)
 
-![Five-day VaR violations](outputs/figures/var_violations.png)
+## Reproduce
 
-## Findings
-
-- Linear Regression had the lowest validation MAE and the lowest test MAE and RMSE.
-- Both tree models ranked behind Linear Regression on the fixed validation period.
-- All six non-overlapping Kupiec p-values exceeded 0.05, with limited power at 99%.
-- Lower volatility forecast error did not imply fewer VaR violations.
-
-## Limitations
-
-- Five daily returns make the realised-volatility target noisy.
-- One chronological split and one test period cannot establish a stable model ranking.
-- Normal VaR, zero expected return and square-root-of-time scaling are restrictive.
-- The Kupiec test checks unconditional frequency; 235 windows give little 99% tail evidence.
-- Daily rebalancing ignores costs and liquidity, and seven ETFs limit generalisation.
-
-## Project structure
-
-```text
-scripts/       # Five complete analysis stages
-notebooks/     # Matching notebooks with saved execution output
-src/           # Small execution and validation helpers
-tests/         # Formula, leakage, alignment and saved-result checks
-data/          # Provenance note; raw and processed observations stay local
-outputs/       # Public aggregate tables and figures; detailed rows stay local
-```
-
-## Reproduce the analysis
-
-The project was tested with Python 3.14. In a virtual environment, run from the project root:
+Use Python 3.14 and run from the repository root:
 
 ```bash
 python -m pip install -r requirements.txt
-python src/run_pipeline.py
-python src/update_readme.py
+python analysis.py
 python -m unittest discover -s tests -v
-python src/verify_pipeline.py
 ```
 
-The first run needs network access if no local raw snapshot exists. A fresh Yahoo download
-may include provider revisions, so exact published numbers require the recorded local data
-vintage.
+The script reads the checksum-verified local raw snapshot when available; otherwise it downloads the same fixed date range. It writes aggregate metrics to `outputs/tables`, the two figures to `outputs/figures`, and observation-level intermediate data locally under `data/processed` and ignored output paths. Exact published numbers require the original data vintage and dependency versions.
 
-The five scripts are the authoritative implementation. `src/run_pipeline.py` runs all five
-scripts and all five notebooks, preserves notebook output, and checks that both paths save
-byte-identical CSV files. Aggregate results are under `outputs/tables`; core figures are
-under `outputs/figures`.
-
-## References
-
-- [yfinance documentation and data-use note](https://github.com/ranaroussi/yfinance#readme)
-- [RiskMetrics Technical Document (1996)](https://www.msci.com/www/research-report/1996-riskmetrics-technical/018482266)
-- [Kupiec proportion-of-failures test](https://www.mathworks.com/help/risk/risk.validation.proportionoffailurestest.html)
+The fixed test period and its results have been inspected in earlier project iterations; it should not be presented as a pristine, once-only holdout. One split, seven ETFs, daily rebalancing without costs, a noisy five-return target and low power at 99% limit generalisation.

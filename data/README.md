@@ -1,27 +1,7 @@
-# Data provenance and reproduction
+# Data provenance
 
-The seven ETFs are SPY, QQQ, IWM, TLT, HYG, GLD and DBC. Part 1 downloads daily
-Yahoo Finance OHLCV fields with `auto_adjust=False` and uses `Adj Close` for returns.
-The start request is 2010-01-01 and the end request is 2026-09-17 (exclusive).
-The analysis therefore ends on 2026-09-16. No price imputation is used.
+`analysis.py` requests Yahoo Finance daily OHLCV data for SPY, QQQ, IWM, TLT, HYG, GLD and DBC from 2010-01-01 through 2026-09-16 (the API end date is exclusive). It uses the `Adj Close` field with `auto_adjust=False` and checks all expected XNYS sessions and all seven adjusted prices before calculating returns. Missing prices are neither filled nor silently dropped.
 
-The local raw snapshot and metadata are retained with SHA-256 verification. They
-are not committed. The published project does not redistribute raw quotes,
-per-asset price/return tables, or a complete derived observation-level dataset.
-The public figures and aggregate tables document this research; they are not
-a market-data feed or a grant of rights to underlying third-party data.
+The local raw CSV and SHA-256 metadata preserve the download vintage. They and the derived observation-level files are excluded from Git. If the snapshot is absent, the script downloads a new vintage; Yahoo revisions may change the reported numbers. The published aggregate tables and figures are therefore a record of this run, while exact numerical reproduction requires the original local snapshot.
 
-The [yfinance project](https://github.com/ranaroussi/yfinance#readme) distinguishes
-its software license from rights to the downloaded data and points to
-[Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html).
-Review applicable provider terms for your own use; downloading through an
-open-source library does not grant redistribution permission.
-
-Running Part 1 without the local snapshot downloads the data and records a new
-vintage. Provider revisions can change prices and results even with a fixed end
-date. Exact reproduction of the reported numbers requires the recorded vintage
-and dependency versions. Tests compare byte-level hashes only when the raw
-snapshot matches the recorded reference; all mathematical checks run regardless.
-
-There is no bundled real-data sample. The unit tests include synthetic returns
-for checking formulas without publishing market observations.
+The [yfinance project](https://github.com/ranaroussi/yfinance#readme) distinguishes its software license from rights to the downloaded data. This repository does not redistribute the Yahoo price observations.

@@ -50,24 +50,3 @@ def check_adjusted_prices(prices, tickers):
             errors.append(f'{asset}: {reason}; date={date:%Y-%m-%d}; value={value!r}')
     if errors:
         raise ValueError('Invalid adjusted prices:\n' + '\n'.join(errors))
-
-
-def check_ohlcv(raw, tickers):
-    """Check existing ordinary OHLCV fields; never compare their ranges with Adj Close."""
-    for asset in tickers:
-        fields = [field for field in ['Open', 'High', 'Low', 'Close', 'Volume']
-                  if (field, asset) in raw.columns]
-        bars = raw.xs(asset, axis=1, level=1)[fields]
-        for field in fields:
-            values = bars[field]
-            if not pd.api.types.is_numeric_dtype(values):
-                raise ValueError(f'{asset}: {field} must be numeric.')
-            invalid = ~np.isfinite(values) | (values < 0 if field == 'Volume' else values <= 0)
-            if invalid.any():
-                details = [(str(date.date()), value) for date, value in values[invalid].items()]
-                raise ValueError(f'{asset}: invalid {field} (date, value): {details}')
-        if all(field in fields for field in ['Open', 'High', 'Low', 'Close']):
-            invalid = ((bars.Low > bars[['Open', 'Close', 'High']].min(axis=1))
-                       | (bars.High < bars[['Open', 'Close', 'Low']].max(axis=1)))
-            if invalid.any():
-                raise ValueError(f'{asset}: inconsistent OHLC range on {bars.index[invalid].strftime("%Y-%m-%d").tolist()}')
