@@ -1,4 +1,4 @@
-"""Feature and target formulas for the equal-weight portfolio in Part 2."""
+"""Feature and target formulas for the equal-weight portfolio."""
 import numpy as np
 import pandas as pd
 

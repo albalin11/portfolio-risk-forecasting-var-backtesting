@@ -1,4 +1,4 @@
-"""Small shared calculation used by Part 4 and its tests."""
+"""Kupiec unconditional-coverage calculation."""
 import numpy as np
 from scipy.special import xlogy
 from scipy.stats import chi2

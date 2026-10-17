@@ -24,7 +24,7 @@ All eight features at forecast date `t` use returns through `t`:
 
 The target is the **sample standard deviation of portfolio returns from `t+1` through `t+5`, multiplied by √252**. It is a noisy volatility proxy because each estimate uses only five returns. The complete dataset has 4,136 forecast dates, from 2010-03-31 to 2026-09-09. The initial 59 dates lack a complete 60-day feature; the final five lack a complete target. These are the only rows omitted.
 
-Training ends on 2017-12-21 (1,948 rows), validation runs from 2018-01-02 to 2021-12-23 (1,003), and test runs from 2022-01-03 to 2026-09-09 (1,175). The five forecast dates before each later split are excluded from fitting or selection because their targets end in the next period. The final selected model is refitted on all eligible pre-test observations.
+Initial training ends on 2017-12-21 (1,948 rows), validation runs from 2018-01-02 to 2021-12-23 (1,003), and test runs from 2022-01-03 to 2026-09-09 (1,175). For model selection, five dates before each boundary are excluded because their future five-day labels cross into the next period. After selection, the chosen model is refitted on every pre-test record whose label ends before the test period begins, including records previously excluded only at the training/validation boundary.
 
 Historical Volatility uses the trailing 20-day feature. EWMA uses a 0.94 decay on squared daily portfolio returns, beginning with the first available return. Linear Regression, Random Forest (200 trees, depth 3, minimum leaf 10) and XGBoost (200 trees, depth 2, learning rate 0.03) use the same eight features and training labels. These are deliberately modest specifications. Historical Volatility and EWMA use their own fixed rules and no fitted target labels. All forecasts and targets are in annualised volatility decimals. Validation MAE selects the ML method; RMSE breaks a tie. The two baselines and the selected ML method are then compared on test. The tree methods are retained as nonlinear validation comparisons; they do not add a separate test claim.
 
@@ -81,7 +81,7 @@ The main result above keeps offset 0. As a diagnostic, the same saved forecasts 
 | 4 | EWMA | 12/235 (5.11%), 0.9406 | 6/235 (2.55%), 0.0453 |
 | 4 | Linear Regression | 21/235 (8.94%), 0.0122 | 10/235 (4.26%), 0.0002 |
 
-Some alternative starts give nominal p-values below 0.05, so the main non-rejection depends on the window start. Outcomes from different starts overlap and are not five independent backtests. Offset 0 remains the prespecified main backtest; no start was chosen for a favourable result.
+Some alternative starts give nominal p-values below 0.05, so the main non-rejection depends on the window start. Outcomes from different starts overlap and are not five independent backtests. Offset 0 remains the original main backtest convention; no start was chosen for a favourable result.
 
 ![Non-overlapping VaR outcomes](outputs/figures/var_violations.png)
 

@@ -1,4 +1,4 @@
-"""Trading-session and adjusted-price checks shared by Part 1 and its tests."""
+"""Trading-session and adjusted-price checks."""
 from numbers import Real
 import numpy as np
 import pandas as pd
