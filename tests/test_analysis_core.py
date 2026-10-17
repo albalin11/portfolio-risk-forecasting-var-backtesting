@@ -46,9 +46,16 @@ class CoreCalculations(unittest.TestCase):
         forecasts = pd.read_csv(root / 'outputs/tables/test_predictions.csv', index_col='Date',
                                 parse_dates=['Date', 'target_start', 'target_end'])
         saved = pd.read_csv(root / 'outputs/tables/kupiec_backtests.csv')
+        sensitivity = pd.read_csv(root / 'outputs/tables/var_window_sensitivity.csv')
+        pd.testing.assert_frame_equal(
+            saved, sensitivity.loc[sensitivity.offset == 0].drop(columns='offset').reset_index(drop=True)
+        )
+        self.assertEqual(set(sensitivity.offset), set(range(5)))
         portfolio = returns.mean(axis=1)
-        anchors = forecasts.index[::5]
-        for row in saved.itertuples(index=False):
+        for row in sensitivity.itertuples(index=False):
+            anchors = forecasts.index[row.offset::5]
+            self.assertTrue((forecasts.loc[anchors, 'target_start'].iloc[1:].to_numpy()
+                             > forecasts.loc[anchors, 'target_end'].iloc[:-1].to_numpy()).all())
             actual = []
             for date in anchors:
                 position = portfolio.index.get_loc(date)

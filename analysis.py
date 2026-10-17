@@ -151,18 +151,23 @@ assert (test_forecasts.target_end == return_dates[return_dates.get_indexer(test.
 
 # Forecasts spaced five sessions apart have disjoint subsequent return windows.
 dates = test.index[::5]
-assert (target_start.loc[dates].iloc[1:].to_numpy() > target_end.loc[dates].iloc[:-1].to_numpy()).all()
 risk_rows = []
-for name in test_metrics.model:
-    for confidence, z in [(0.95, 1.6448536269514722), (0.99, 2.3263478740408408)]:
-        var = z * test_forecasts.loc[dates, name] * np.sqrt(5 / 252)
-        violations = actual_5d.loc[dates] < -var
-        statistic, p_value = kupiec_test(violations, 1 - confidence)
-        risk_rows.append({'model': name, 'confidence': confidence, 'observations': len(dates),
-                          'violations': int(violations.sum()), 'violation_rate': violations.mean(),
-                          'expected_violation_rate': 1 - confidence,
-                          'kupiec_statistic': statistic, 'kupiec_p_value': p_value})
-backtests = pd.DataFrame(risk_rows)
+for offset in range(5):
+    window_dates = test.index[offset::5]
+    assert (target_start.loc[window_dates].iloc[1:].to_numpy()
+            > target_end.loc[window_dates].iloc[:-1].to_numpy()).all()
+    for name in test_metrics.model:
+        for confidence, z in [(0.95, 1.6448536269514722), (0.99, 2.3263478740408408)]:
+            var = z * test_forecasts.loc[window_dates, name] * np.sqrt(5 / 252)
+            violations = actual_5d.loc[window_dates] < -var
+            statistic, p_value = kupiec_test(violations, 1 - confidence)
+            risk_rows.append({'offset': offset, 'model': name, 'confidence': confidence,
+                              'observations': len(window_dates), 'violations': int(violations.sum()),
+                              'violation_rate': violations.mean(), 'expected_violation_rate': 1 - confidence,
+                              'kupiec_statistic': statistic, 'kupiec_p_value': p_value})
+sensitivity = pd.DataFrame(risk_rows)
+sensitivity.to_csv(TABLES / 'var_window_sensitivity.csv', index=False)
+backtests = sensitivity.loc[sensitivity.offset == 0].drop(columns='offset')
 backtests.to_csv(TABLES / 'kupiec_backtests.csv', index=False)
 
 fig, axes = plt.subplots(3, 1, figsize=(11, 8), sharex=True, constrained_layout=True)
@@ -199,3 +204,5 @@ print(splits.to_string(index=False))
 print(validation_metrics.to_string(index=False))
 print(test_metrics.to_string(index=False))
 print(backtests.to_string(index=False))
+print(sensitivity[['offset', 'model', 'confidence', 'observations', 'violations',
+                   'violation_rate', 'kupiec_p_value']].to_string(index=False))

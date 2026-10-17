@@ -22,7 +22,7 @@ All eight features at forecast date `t` use returns through `t`:
 | `drawdown` | Compounded portfolio wealth relative to its highest level since the sample start (including initial wealth of 1) |
 | `average_correlation_20d` | Mean of the 21 distinct pairwise ETF return correlations over 20 sessions |
 
-The target is the **sample standard deviation of portfolio returns from `t+1` through `t+5`, multiplied by √252**. The complete dataset has 4,136 forecast dates, from 2010-03-31 to 2026-09-09. The initial 59 dates lack a complete 60-day feature; the final five lack a complete target. These are the only rows omitted.
+The target is the **sample standard deviation of portfolio returns from `t+1` through `t+5`, multiplied by √252**. It is a noisy volatility proxy because each estimate uses only five returns. The complete dataset has 4,136 forecast dates, from 2010-03-31 to 2026-09-09. The initial 59 dates lack a complete 60-day feature; the final five lack a complete target. These are the only rows omitted.
 
 Training ends on 2017-12-21 (1,948 rows), validation runs from 2018-01-02 to 2021-12-23 (1,003), and test runs from 2022-01-03 to 2026-09-09 (1,175). The five forecast dates before each later split are excluded from fitting or selection because their targets end in the next period. The final selected model is refitted on all eligible pre-test observations.
 
@@ -38,13 +38,13 @@ Historical Volatility uses the trailing 20-day feature. EWMA uses a 0.94 decay o
 | Historical Volatility | 0.041307 | 0.063688 | 0.040831 | 0.060382 |
 | EWMA | 0.041399 | 0.061941 | 0.039416 | 0.057162 |
 
-Linear Regression has the lowest validation MAE and the lowest test MAE and RMSE among the evaluated models. Its test RMSE is 7.34% below EWMA, the stronger baseline by RMSE. This is a point comparison on one period, not evidence of statistical or economic superiority.
+Linear Regression has the lowest validation MAE and the lowest test MAE and RMSE among the evaluated models. Its test RMSE is 7.34% below EWMA, the stronger baseline by RMSE. This point comparison does not establish statistical superiority or show that its VaR is more reliable.
 
 ![Test forecasts](outputs/figures/test_volatility_forecasts.png)
 
 ## Five-day VaR
 
-For each forecast, the positive loss limit is `z × annualised volatility × √(5/252)`, with normal quantiles 1.64485 at 95% and 2.32635 at 99%. This assumes zero expected return and square-root-of-time variance scaling. A violation occurs when the **compounded** return over `t+1` through `t+5` is below the negative limit. Using a normal additive-return approximation for a compounded outcome is another limitation.
+For each forecast, the positive loss limit is `z × annualised volatility × √(5/252)`, with normal quantiles 1.64485 at 95% and 2.32635 at 99%. Zero expected return, normality and square-root-of-time scaling are assumptions of this VaR calculation; the backtest does not verify them. A violation occurs when the **compounded** return over `t+1` through `t+5` is below the negative limit. Using a normal additive-return approximation for a compounded outcome is another limitation.
 
 Kupiec's unconditional coverage test uses every fifth test forecast from 2022-01-03, giving 235 disjoint five-session outcomes per model and confidence level. The reported p-values use the one-degree-of-freedom chi-square reference distribution.
 
@@ -57,7 +57,31 @@ Kupiec's unconditional coverage test uses every fifth test forecast from 2022-01
 | Linear Regression | 95% | 15 | 6.38% | 0.8735 | 0.3500 |
 | Linear Regression | 99% | 4 | 1.70% | 0.9668 | 0.3255 |
 
-All six Kupiec p-values exceed 0.05. That does **not** establish accurate VaR: only 2.35 violations are expected at 99%, and the test checks frequency rather than independence or loss severity. Linear Regression has the smallest volatility error but the most observed violations at both VaR levels. This result supports a narrower conclusion: improved average volatility error did not produce fewer tail breaches here. The normal assumption, five-session scaling, short realised-volatility target and portfolio return distribution may matter; these data do not isolate which factor explains the difference.
+All six Kupiec p-values exceed 0.05, but non-rejection does **not** prove correct VaR calibration. At 95%, 11.75 violations are expected: Linear Regression's 15/235 is slightly closer to that count than EWMA's 8/235, despite having more breaches. At 99%, only 2.35 are expected, and Kupiec tests frequency rather than independence or loss severity. Lower volatility RMSE therefore cannot by itself establish better VaR. The distribution assumption, time scaling and noisy target may matter; this analysis does not identify a specific cause.
+
+### Window-start sensitivity
+
+The main result above keeps offset 0. As a diagnostic, the same saved forecasts were tested using four other starts, each followed by every fifth forecast. Each row has 235 disjoint five-session outcomes. Entries show violations, rate and Kupiec p-value; the full results are in [`var_window_sensitivity.csv`](outputs/tables/var_window_sensitivity.csv).
+
+| Offset | Model | 95%: breaches (rate), p | 99%: breaches (rate), p |
+| ---: | --- | ---: | ---: |
+| 0 | Historical Volatility | 10/235 (4.26%), 0.5913 | 3/235 (1.28%), 0.6828 |
+| 0 | EWMA | 8/235 (3.40%), 0.2347 | 1/235 (0.43%), 0.3176 |
+| 0 | Linear Regression | 15/235 (6.38%), 0.3500 | 4/235 (1.70%), 0.3255 |
+| 1 | Historical Volatility | 12/235 (5.11%), 0.9406 | 5/235 (2.13%), 0.1310 |
+| 1 | EWMA | 10/235 (4.26%), 0.5913 | 6/235 (2.55%), 0.0453 |
+| 1 | Linear Regression | 15/235 (6.38%), 0.3500 | 7/235 (2.98%), 0.0137 |
+| 2 | Historical Volatility | 12/235 (5.11%), 0.9406 | 7/235 (2.98%), 0.0137 |
+| 2 | EWMA | 11/235 (4.68%), 0.8206 | 5/235 (2.13%), 0.1310 |
+| 2 | Linear Regression | 19/235 (8.09%), 0.0455 | 7/235 (2.98%), 0.0137 |
+| 3 | Historical Volatility | 15/235 (6.38%), 0.3500 | 5/235 (2.13%), 0.1310 |
+| 3 | EWMA | 15/235 (6.38%), 0.3500 | 2/235 (0.85%), 0.8138 |
+| 3 | Linear Regression | 23/235 (9.79%), 0.0027 | 10/235 (4.26%), 0.0002 |
+| 4 | Historical Volatility | 13/235 (5.53%), 0.7128 | 5/235 (2.13%), 0.1310 |
+| 4 | EWMA | 12/235 (5.11%), 0.9406 | 6/235 (2.55%), 0.0453 |
+| 4 | Linear Regression | 21/235 (8.94%), 0.0122 | 10/235 (4.26%), 0.0002 |
+
+Some alternative starts give nominal p-values below 0.05, so the main non-rejection depends on the window start. Outcomes from different starts overlap and are not five independent backtests. Offset 0 remains the prespecified main backtest; no start was chosen for a favourable result.
 
 ![Non-overlapping VaR outcomes](outputs/figures/var_violations.png)
 
